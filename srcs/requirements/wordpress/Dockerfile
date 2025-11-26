@@ -1,18 +1,16 @@
 FROM debian:bullseye
 
-# Install PHP without specific version (will get the default)
 RUN apt-get update && apt-get install -y \
-    php-fpm \
-    php-mysql \
-    php-curl \
-    php-gd \
-    php-mbstring \
-    php-xml \
-    php-xmlrpc \
-    php-soap \
-    php-intl \
-    php-zip \
-    wget \
+    php7.4-fpm \
+    php7.4-mysql \
+    php7.4-curl \
+    php7.4-gd \
+    php7.4-mbstring \
+    php7.4-xml \
+    php7.4-xmlrpc \
+    php7.4-soap \
+    php7.4-intl \
+    php7.4-zip \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy WordPress from local directory
@@ -22,16 +20,15 @@ COPY wordpress/ /var/www/html/wordpress/
 RUN chown -R www-data:www-data /var/www/html/wordpress
 
 # Create PHP-FPM run directory
-RUN mkdir -p /run/php
+RUN mkdir -p /run/php && chown www-data:www-data /run/php
 
-# Find and use the correct PHP version
-RUN PHP_VERSION=$(php -v | head -n 1 | cut -d " " -f 2 | cut -d "." -f 1,2) && \
-    echo "Using PHP version: $PHP_VERSION"
+# Ensure PHP-FPM listens on all interfaces
+RUN sed -i 's/^listen = .*/listen = 0.0.0.0:9000/' /etc/php/7.4/fpm/pool.d/www.conf
 
-# Copy PHP-FPM configuration to the correct location
-COPY conf/www.conf /etc/php/*/fpm/pool.d/www.conf
+# Copy our custom PHP-FPM configuration
+COPY conf/www.conf /etc/php/7.4/fpm/pool.d/www.conf
 
 EXPOSE 9000
 
-# Use the discovered PHP-FPM version
-CMD ["sh", "-c", "php-fpm$(php -r 'echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION;') -F"]
+# Start PHP-FPM in foreground mode
+CMD ["php-fpm7.4", "-F", "-R"]
