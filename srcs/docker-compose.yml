@@ -6,14 +6,17 @@ services:
     container_name: mariadb
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
     volumes:
-      - /home/${USER}/data/mariadb:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     networks:
       - inception
+    secrets:
+      - db_password
+      - db_root_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -34,19 +37,22 @@ services:
       DB_HOST: mariadb:3306
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD_FILE: /run/secrets/db_password
       WP_ADMIN_USER: ${WP_ADMIN_USER}
-      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+      WP_ADMIN_PASSWORD_FILE: /run/secrets/wp_admin_password
       WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL}
       WP_URL: ${WP_URL}
       WP_TITLE: Inception
       WP_USER: contributor
       WP_USER_EMAIL: user@example.com
-      WP_USER_PASSWORD: ${DB_PASSWORD}
+      WP_USER_PASSWORD_FILE: /run/secrets/db_password
     volumes:
-      - /home/${USER}/data/wordpress:/var/www/html
+      - wordpress_data:/var/www/html
     networks:
       - inception
+    secrets:
+      - db_password
+      - wp_admin_password
 
   nginx:
     build:
@@ -59,12 +65,33 @@ services:
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME}
     ports:
-      - "80:80"
       - "443:443"
     volumes:
-      - /home/${USER}/data/wordpress:/var/www/html:ro
+      - wordpress_data:/var/www/html:ro
     networks:
       - inception
+
+volumes:
+  mariadb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/${USER}/data/mariadb
+  wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/${USER}/data/wordpress
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  db_root_password:
+    file: ./secrets/db_root_password.txt
+  wp_admin_password:
+    file: ./secrets/wp_admin_password.txt
 
 networks:
   inception:

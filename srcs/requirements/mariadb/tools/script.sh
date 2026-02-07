@@ -3,7 +3,19 @@
 set -e
 
 echo "[MariaDB] Starting initialization..."
-echo "[MariaDB] Database: ${MYSQL_DATABASE}, User: ${MYSQL_USER}"
+
+# Load secrets if provided
+if [ -n "${MYSQL_PASSWORD_FILE}" ] && [ -f "${MYSQL_PASSWORD_FILE}" ]; then
+    MYSQL_PASSWORD="$(cat "${MYSQL_PASSWORD_FILE}")"
+fi
+if [ -n "${MYSQL_ROOT_PASSWORD_FILE}" ] && [ -f "${MYSQL_ROOT_PASSWORD_FILE}" ]; then
+    MYSQL_ROOT_PASSWORD="$(cat "${MYSQL_ROOT_PASSWORD_FILE}")"
+fi
+
+if [ -z "${MYSQL_DATABASE}" ] || [ -z "${MYSQL_USER}" ] || [ -z "${MYSQL_PASSWORD}" ] || [ -z "${MYSQL_ROOT_PASSWORD}" ]; then
+    echo "[MariaDB] Missing required environment variables or secrets."
+    exit 1
+fi
 
 # Initialize database if needed
 if [ ! -d "/var/lib/mysql/mysql" ]; then

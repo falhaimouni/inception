@@ -3,7 +3,26 @@
 set -e
 
 echo "[WordPress] Starting initialization..."
-echo "[WordPress] DB_HOST=${DB_HOST}, DB_USER=${DB_USER}, DB_PASSWORD=${DB_PASSWORD}"
+
+# Load secrets if provided
+if [ -n "${DB_PASSWORD_FILE}" ] && [ -f "${DB_PASSWORD_FILE}" ]; then
+    DB_PASSWORD="$(cat "${DB_PASSWORD_FILE}")"
+fi
+if [ -n "${WP_ADMIN_PASSWORD_FILE}" ] && [ -f "${WP_ADMIN_PASSWORD_FILE}" ]; then
+    WP_ADMIN_PASSWORD="$(cat "${WP_ADMIN_PASSWORD_FILE}")"
+fi
+if [ -n "${WP_USER_PASSWORD_FILE}" ] && [ -f "${WP_USER_PASSWORD_FILE}" ]; then
+    WP_USER_PASSWORD="$(cat "${WP_USER_PASSWORD_FILE}")"
+fi
+
+if [ -z "${DB_HOST}" ] || [ -z "${DB_NAME}" ] || [ -z "${DB_USER}" ] || [ -z "${DB_PASSWORD}" ]; then
+    echo "[WordPress] Missing required database configuration."
+    exit 1
+fi
+if [ -z "${WP_ADMIN_USER}" ] || [ -z "${WP_ADMIN_PASSWORD}" ] || [ -z "${WP_ADMIN_EMAIL}" ]; then
+    echo "[WordPress] Missing required admin configuration."
+    exit 1
+fi
 
 # Copy WordPress files if /var/www/html is empty
 if [ -z "$(ls -A /var/www/html/)" ]; then
