@@ -3,11 +3,22 @@
 set -e
 
 echo "[WordPress] Starting initialization..."
+echo "[WordPress] DB_HOST=${DB_HOST}, DB_USER=${DB_USER}, DB_PASSWORD=${DB_PASSWORD}"
+
+# Copy WordPress files if /var/www/html is empty
+if [ -z "$(ls -A /var/www/html/)" ]; then
+    echo "[WordPress] Copying WordPress files..."
+    cp -r /tmp/wordpress-install/* /var/www/html/
+    chown -R www-data:www-data /var/www/html
+fi
+
+# Extract hostname from DB_HOST (remove port if present)
+DB_HOSTNAME="${DB_HOST%%:*}"
 
 # Wait for MariaDB to be ready
-echo "[WordPress] Waiting for MariaDB at ${DB_HOST}..."
+echo "[WordPress] Waiting for MariaDB at ${DB_HOSTNAME}..."
 for i in {1..30}; do
-    if mysqladmin ping -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASSWORD}" --silent 2>/dev/null; then
+    if mysqladmin ping -h"${DB_HOSTNAME}" -u"${DB_USER}" -p"${DB_PASSWORD}" --silent 2>/dev/null; then
         echo "[WordPress] MariaDB is ready"
         break
     fi
@@ -24,7 +35,7 @@ if [ ! -f "/var/www/html/wp-config.php" ]; then
     sed -i "s/database_name_here/${DB_NAME}/g" /var/www/html/wp-config.php
     sed -i "s/username_here/${DB_USER}/g" /var/www/html/wp-config.php
     sed -i "s/password_here/${DB_PASSWORD}/g" /var/www/html/wp-config.php
-    sed -i "s/localhost/${DB_HOST}/g" /var/www/html/wp-config.php
+    sed -i "s/localhost/${DB_HOSTNAME}/g" /var/www/html/wp-config.php
     
     # Add security salts and keys
     echo "[WordPress] Fetching security keys and salts..."

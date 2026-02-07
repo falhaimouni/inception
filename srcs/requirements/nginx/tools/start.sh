@@ -4,6 +4,11 @@ set -e
 
 echo "[NGINX] Starting initialization..."
 
+# Template the nginx config with environment variables
+echo "[NGINX] Templating nginx configuration with DOMAIN_NAME=${DOMAIN_NAME}..."
+envsubst '${DOMAIN_NAME}' < /etc/nginx/sites-available/default > /etc/nginx/sites-available/default.tmp
+mv /etc/nginx/sites-available/default.tmp /etc/nginx/sites-available/default
+
 # Generate self-signed SSL certificate if it doesn't exist
 if [ ! -f "/etc/ssl/certs/inception.crt" ] || [ ! -f "/etc/ssl/private/inception.key" ]; then
     echo "[NGINX] Generating self-signed SSL certificate..."

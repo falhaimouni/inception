@@ -38,6 +38,9 @@ RUN mkdir -p /run/php && \
     chown -R www-data:www-data /run/php && \
     chmod +x /usr/local/bin/start.sh
 
+# Copy WordPress files to a temporary location for the startup script to deploy
+COPY wordpress/ /tmp/wordpress-install/
+
 EXPOSE 9000
 
 ENTRYPOINT ["/usr/local/bin/start.sh"]
