@@ -11,24 +11,33 @@ RUN apt-get update && apt-get install -y \
     php7.4-soap \
     php7.4-intl \
     php7.4-zip \
+    php7.4-cli \
+    curl \
+    mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy WordPress from local directory
-COPY wordpress/ /var/www/html/wordpress/
+# Install WP-CLI for WordPress management
+RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && \
+    chmod +x wp-cli.phar && \
+    mv wp-cli.phar /usr/local/bin/wp
 
-# Set proper permissions
-RUN chown -R www-data:www-data /var/www/html/wordpress
+WORKDIR /var/www/html
 
-# Create PHP-FPM run directory
-RUN mkdir -p /run/php && chown www-data:www-data /run/php
+# Copy WordPress files
+COPY wordpress/ /var/www/html/
 
-# Ensure PHP-FPM listens on all interfaces
-RUN sed -i 's/^listen = .*/listen = 0.0.0.0:9000/' /etc/php/7.4/fpm/pool.d/www.conf
-
-# Copy our custom PHP-FPM configuration
+# Copy PHP-FPM configuration
 COPY conf/www.conf /etc/php/7.4/fpm/pool.d/www.conf
+
+# Copy initialization script
+COPY tools/start.sh /usr/local/bin/start.sh
+
+# Create PHP-FPM run directory and set permissions
+RUN mkdir -p /run/php && \
+    chown -R www-data:www-data /var/www/html && \
+    chown -R www-data:www-data /run/php && \
+    chmod +x /usr/local/bin/start.sh
 
 EXPOSE 9000
 
-# Start PHP-FPM in foreground mode
-CMD ["php-fpm7.4", "-F", "-R"]
+ENTRYPOINT ["/usr/local/bin/start.sh"]

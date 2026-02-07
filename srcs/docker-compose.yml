@@ -1,53 +1,71 @@
 services:
-  nginx:
-    build: ./requirements/nginx
-    container_name: nginx
-    ports:
-      - "443:443"
-    volumes:
-      - wordpress_data:/var/www/html/wordpress
-    networks:
-      - frontend
-    depends_on:
-      - wordpress
-    restart: unless-stopped
-
   mariadb:
-    build: ./requirements/mariadb
+    build:
+      context: ./requirements/mariadb
+      dockerfile: Dockerfile
     container_name: mariadb
-    volumes:
-      - mariadb_data:/var/lib/mysql
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /home/${USER}/data/mariadb:/var/lib/mysql
     networks:
-      - backend
-    restart: unless-stopped
+      - inception
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   wordpress:
-    build: ./requirements/wordpress
+    build:
+      context: ./requirements/wordpress
+      dockerfile: Dockerfile
     container_name: wordpress
-    volumes:
-      - wordpress_data:/var/www/html/wordpress
-    environment:
-      WORDPRESS_DB_HOST: mariadb
-      WORDPRESS_DB_USER: wpuser
-      WORDPRESS_DB_PASSWORD: wppassword
-      WORDPRESS_DB_NAME: wordpress
-    networks:
-      - frontend
-      - backend
+    restart: always
     depends_on:
-      - mariadb
-    restart: unless-stopped
+      mariadb:
+        condition: service_healthy
+    environment:
+      DB_HOST: mariadb:3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      WP_ADMIN_USER: ${WP_ADMIN_USER}
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+      WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL}
+      WP_URL: ${WP_URL}
+      WP_TITLE: Inception
+      WP_USER: contributor
+      WP_USER_EMAIL: user@example.com
+      WP_USER_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /home/${USER}/data/wordpress:/var/www/html
+    networks:
+      - inception
 
-volumes:
-  mariadb_data:
-    driver: local
-  wordpress_data:
-    driver: local
+  nginx:
+    build:
+      context: ./requirements/nginx
+      dockerfile: Dockerfile
+    container_name: nginx
+    restart: always
+    depends_on:
+      - wordpress
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /home/${USER}/data/wordpress:/var/www/html:ro
+    networks:
+      - inception
 
 networks:
-  frontend:
-    driver: bridge
-  backend:
+  inception:
     driver: bridge

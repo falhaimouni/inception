@@ -1,23 +1,44 @@
 #!/bin/bash
 
+set -e
+
+echo "[MariaDB] Starting initialization..."
+echo "[MariaDB] Database: ${MYSQL_DATABASE}, User: ${MYSQL_USER}"
+
+# Initialize database if needed
 if [ ! -d "/var/lib/mysql/mysql" ]; then
-    mysql_install_db --user=mysql --datadir=/var/lib/mysql
+    echo "[MariaDB] Initializing database..."
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql --skip-test-db
+    echo "[MariaDB] Database initialization complete"
+    
+    # Start MariaDB temporarily to set up users
+    mysqld --user=mysql --datadir=/var/lib/mysql --bind-address=0.0.0.0 &
+    MARIADB_PID=$!
+    
+    # Wait for MariaDB to start
+    sleep 3
+    
+    # Create database and user with proper escaping
+    mysql -u root <<EOF
+CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;
+CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
+GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'%';
+ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
+FLUSH PRIVILEGES;
+EOF
+    
+    echo "[MariaDB] Database and user created"
+    
+    # Stop the temporary MariaDB instance
+    kill $MARIADB_PID
+    wait $MARIADB_PID 2>/dev/null || true
 fi
 
-# Start MariaDB temporarily to run commands
-mysqld_safe --datadir=/var/lib/mysql &
+# Set proper permissions
+chown -R mysql:mysql /var/lib/mysql /var/run/mysqld
+chmod 777 /var/run/mysqld
 
-# Wait for MariaDB to start
-sleep 5
+echo "[MariaDB] Starting MariaDB server in foreground..."
 
-# Create database and user
-mysql -e "CREATE DATABASE IF NOT EXISTS wordpress;"
-mysql -e "CREATE USER IF NOT EXISTS 'wpuser'@'%' IDENTIFIED BY 'wppassword';"
-mysql -e "GRANT ALL PRIVILEGES ON wordpress.* TO 'wpuser'@'%';"
-mysql -e "FLUSH PRIVILEGES;"
-
-# Stop the temporary MariaDB instance
-mysqladmin shutdown
-
-# Start MariaDB in foreground
-exec mysqld_safe --datadir=/var/lib/mysql
+# Start MariaDB directly in foreground, replacing the shell process (PID 1)
+exec mysqld --user=mysql --datadir=/var/lib/mysql --bind-address=0.0.0.0
