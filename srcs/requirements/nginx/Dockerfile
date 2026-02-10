@@ -1,27 +1,15 @@
-FROM debian:bullseye
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
-    nginx \
-    openssl \
-    gettext-base \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt update -y \
+    && apt install nginx -y \
+    && apt install openssl -y
 
-# Create directory for certificates
-RUN mkdir -p /etc/ssl/certs /etc/ssl/private && \
-    chmod 700 /etc/ssl/private
-
-# Copy initialization script that generates certificates
-COPY tools/start.sh /usr/local/bin/start.sh
-
-# Copy nginx configuration files
-COPY conf/nginx.conf /etc/nginx/nginx.conf
-COPY conf/default.conf /etc/nginx/sites-available/default
-
-# Enable the site by creating symlink
-RUN mkdir -p /etc/nginx/sites-enabled && \
-    ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default && \
-    chmod +x /usr/local/bin/start.sh
-
-EXPOSE 80 443
-
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+COPY  conf/default.conf /etc/nginx/conf.d
+RUN rm -f /etc/nginx/sites-enabled/default
+RUN mkdir -p /etc/nginx/ssl
+RUN openssl req -x509 -nodes -newkey rsa:2048 \
+    -keyout /etc/nginx/ssl/server.key \
+    -out /etc/nginx/ssl/server.crt \
+    -days 365 \
+    -subj "/C=JO/ST=Amman/L=Amman/O=42/OU=Inception/CN=localhost"
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,17 +1,11 @@
-FROM debian:bullseye
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
-    mariadb-server \
-    mariadb-client \
+RUN apt-get update \
+    && apt-get install -y mariadb-server\
     && rm -rf /var/lib/apt/lists/*
 
-COPY conf/my.cnf /etc/mysql/my.cnf
-COPY tools/script.sh /usr/local/bin/start.sh
+COPY tools/mariadb.sh .
 
-RUN chmod +x /usr/local/bin/start.sh && \
-    mkdir -p /var/run/mysqld && \
-    chown -R mysql:mysql /var/run/mysqld /var/lib/mysql
+RUN chmod +x mariadb.sh
 
-EXPOSE 3306
-
-ENTRYPOINT ["/usr/local/bin/start.sh"]
+ENTRYPOINT ["./mariadb.sh"]

@@ -1,98 +1,94 @@
 services:
   mariadb:
-    build:
-      context: ./requirements/mariadb
-      dockerfile: Dockerfile
+    build: ./requirements/mariadb/
     container_name: mariadb
+    image: mariadb
     restart: always
-    environment:
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD_FILE: /run/secrets/db_password
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
     volumes:
-      - mariadb_data:/var/lib/mysql
-    networks:
-      - inception
-    secrets:
-      - db_password
-      - db_root_password
+      - mariadb_vol:/var/lib/mysql
+    env_file:
+      - .env
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u $DB_USER -p$(cat /run/secrets/db_password | tr -d '\n')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      network_1:
+        ipv4_address: 192.168.91.3
+    secrets:
+      - db_password
+      - db_root_password
 
   wordpress:
-    build:
-      context: ./requirements/wordpress
-      dockerfile: Dockerfile
+    build: ./requirements/wordpress/
     container_name: wordpress
+    image: wordpress
     restart: always
+    volumes: 
+      - wordpress_vol:/var/www/html
+    env_file:
+      - .env
+    networks:
+      network_1:
+        ipv4_address: 192.168.91.2
     depends_on:
       mariadb:
         condition: service_healthy
-    environment:
-      DB_HOST: mariadb:3306
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD_FILE: /run/secrets/db_password
-      WP_ADMIN_USER: ${WP_ADMIN_USER}
-      WP_ADMIN_PASSWORD_FILE: /run/secrets/wp_admin_password
-      WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL}
-      WP_URL: ${WP_URL}
-      WP_TITLE: Inception
-      WP_USER: contributor
-      WP_USER_EMAIL: user@example.com
-      WP_USER_PASSWORD_FILE: /run/secrets/db_password
-    volumes:
-      - wordpress_data:/var/www/html
-    networks:
-      - inception
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9000 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     secrets:
-      - db_password
       - wp_admin_password
-
+      - db_password
+      - wp_user_password
   nginx:
-    build:
-      context: ./requirements/nginx
-      dockerfile: Dockerfile
+    build: ./requirements/nginx/
     container_name: nginx
+    image: nginx
     restart: always
-    depends_on:
-      - wordpress
-    environment:
-      DOMAIN_NAME: ${DOMAIN_NAME}
-    ports:
-      - "443:443"
     volumes:
-      - wordpress_data:/var/www/html:ro
+      - wordpress_vol:/var/www/html
+    env_file:
+      - .env
+    depends_on: 
+      wordpress:
+        condition: service_healthy
+    ports: 
+      - "443:443"
     networks:
-      - inception
-
+      network_1:
+         ipv4_address: 192.168.91.4
 volumes:
-  mariadb_data:
+  mariadb_vol:
     driver: local
     driver_opts:
       type: none
+      device: ~/data/db
       o: bind
-      device: /home/${USER}/data/mariadb
-  wordpress_data:
+  wordpress_vol:
     driver: local
     driver_opts:
       type: none
-      o: bind
-      device: /home/${USER}/data/wordpress
+      device: ~/data/wp
+      o: bind 
+
+networks:
+  network_1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "192.168.91.0/24"
 
 secrets:
   db_password:
-    file: ./secrets/db_password.txt
+    file: ../secrets/db_password.txt
   db_root_password:
-    file: ./secrets/db_root_password.txt
+    file: ../secrets/db_root_password.txt
   wp_admin_password:
-    file: ./secrets/wp_admin_password.txt
-
-networks:
-  inception:
-    driver: bridge
+    file: ../secrets/wp_admin_password.txt
+  wp_user_password:
+    file: ../secrets/wp_user_password.txt

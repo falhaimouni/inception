@@ -2,7 +2,7 @@
 .env
 .env.local
 srcs/.env
-srcs/secrets/
+secrets/
 
 # Data volumes (should not be in git)
 /home/*/data/
