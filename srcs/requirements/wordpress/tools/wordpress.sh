@@ -19,9 +19,14 @@ if [ ! -f "$WP_DIR/wp-config.php" ]; then
   sed -i "s/localhost/${DB_HOST}/" "$WP_DIR/wp-config.php"
 
   # Ensure WordPress knows its canonical URL (helps with redirects when behind TLS termination)
-  sed -i "1i define('WP_HOME', '${WP_URL}');\ndefine('WP_SITEURL', '${WP_URL}');" "$WP_DIR/wp-config.php"
+  if ! grep -q "WP_HOME" "$WP_DIR/wp-config.php"; then
+    sed -i "1s|^<?php$|<?php\n\ndefine('WP_HOME', '${WP_URL}');\ndefine('WP_SITEURL', '${WP_URL}');|" "$WP_DIR/wp-config.php"
+  fi
   # Add HTTPS detection for reverse proxies
-  sed -i "/\/\* That's all, stop editing! Happy publishing. \*\//i \\\n+/* HTTPS Detection */\nif (isset(\\\$_SERVER['HTTP_X_FORWARDED_PROTO']) && \\\$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {\n    \\\$_SERVER['HTTPS'] = 'on';\n}\n" "$WP_DIR/wp-config.php" || true
+  if ! grep -q "HTTPS Detection" "$WP_DIR/wp-config.php"; then
+    sed -i "/\/\* That's all, stop editing! Happy publishing. \*\//i \\
+/* HTTPS Detection */\nif (isset(\\\$_SERVER['HTTP_X_FORWARDED_PROTO']) && \\\$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {\n    \\\$_SERVER['HTTPS'] = 'on';\n}\n" "$WP_DIR/wp-config.php" || true
+  fi  
 fi
 
 if ! wp --path="$WP_DIR" core is-installed --allow-root; then
