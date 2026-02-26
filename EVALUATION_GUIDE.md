@@ -52,7 +52,7 @@ inception/
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Linux system with `/home/falhaimouni` directory accessible
+- Linux system with `/home/falhaimo` directory accessible
 
 ### Step 1: Create Secrets (One-time Setup)
 
@@ -67,8 +67,8 @@ echo "wp_user_secure_password" > secrets/wp_user_password.txt
 ### Step 2: Create Data Directories
 
 ```bash
-mkdir -p /home/falhaimouni/data/db
-mkdir -p /home/falhaimouni/data/wp
+mkdir -p /home/falhaimo/data/db
+mkdir -p /home/falhaimo/data/wp
 ```
 
 ### Step 3: Start the Project
@@ -247,7 +247,7 @@ docker network rm $(docker network ls -q) 2>/dev/null || true
 ### Step 2: Run Make
 
 ```bash
-cd /home/falhaimouni/42_projects/inception
+cd /home/falhaimo/42_projects/inception
 make
 ```
 
@@ -323,10 +323,10 @@ docker volume ls
 # inception_wordpress_vol
 
 docker inspect inception_wordpress_vol
-# Should show Mountpoint: /home/falhaimouni/data/wp
+# Should show Mountpoint: /home/falhaimo/data/wp
 
 docker inspect inception_mariadb_vol
-# Should show Mountpoint: /home/falhaimouni/data/db
+# Should show Mountpoint: /home/falhaimo/data/db
 ```
 
 ### Step 9: Test WordPress Installation
@@ -343,7 +343,7 @@ https://falhaimo.42.fr/
 
 **Login with admin credentials:**
 - URL: `https://falhaimo.42.fr/wp-login.php`
-- Username: `falhaimouni` (no "admin")
+- Username: `falhaimo` (no "admin")
 - Password: (from secrets/wp_admin_password.txt)
 
 ### Step 10: Test Database Connectivity
@@ -415,16 +415,16 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-### Issue: "Volume mount fails: /home/falhaimouni/data/db not found"
+### Issue: "Volume mount fails: /home/falhaimo/data/db not found"
 
 **Solution:**
 ```bash
 # Create directories
-mkdir -p /home/falhaimouni/data/db
-mkdir -p /home/falhaimouni/data/wp
+mkdir -p /home/falhaimo/data/db
+mkdir -p /home/falhaimo/data/wp
 
 # Fix permissions
-sudo chown -R $USER:$USER /home/falhaimouni/data/
+sudo chown -R $USER:$USER /home/falhaimo/data/
 ```
 
 ### Issue: "WordPress shows installation page"
@@ -495,7 +495,7 @@ docker exec wordpress ping mariadb
 
 3. **Custom network**: Using a bridge network instead of links or host networking. Services communicate by name: `wordpress:9000`, `mariadb:3306`.
 
-4. **Volume management**: Bind mounts store persistent data in `/home/falhaimouni/data/` on the host, not inside containers.
+4. **Volume management**: Bind mounts store persistent data in `/home/falhaimo/data/` on the host, not inside containers.
 
 5. **Secrets management**: Using Docker Secrets for credentials, not environment variables.
 
@@ -553,7 +553,7 @@ docker inspect [volume_name]
 - [x] WordPress installed and accessible
 - [x] No pre-made images
 - [x] Custom bridge network
-- [x] All volumes mounted to `/home/falhaimouni/data/`
+- [x] All volumes mounted to `/home/falhaimo/data/`
 - [x] No background processes in entrypoints
 - [x] Admin user without "admin" keyword
 - [x] Data persists after reboot
