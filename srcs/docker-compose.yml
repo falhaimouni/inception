@@ -15,8 +15,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      network_1:
-        ipv4_address: 192.168.91.3
+      - network_1
     secrets:
       - db_password
       - db_root_password
@@ -31,8 +30,8 @@ services:
     env_file:
       - .env
     networks:
-      network_1:
-        ipv4_address: 192.168.91.2
+      - network_1
+
     depends_on:
       mariadb:
         condition: service_healthy
@@ -61,8 +60,7 @@ services:
       - "80:80"
       - "443:443"
     networks:
-      network_1:
-         ipv4_address: 192.168.91.4
+      - network_1
 volumes:
   mariadb_vol:
     driver: local
@@ -80,9 +78,6 @@ volumes:
 networks:
   network_1:
     driver: bridge
-    ipam:
-      config:
-        - subnet: "192.168.91.0/24"
 
 secrets:
   db_password:

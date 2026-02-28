@@ -1,8 +1,8 @@
 all : volumes run
 
 volumes:
-	@mkdir -p ~/data
-	@mkdir -p ~/data/wp ~/data/db
+	@mkdir -p /home/falhaimo/data
+	@mkdir -p /home/falhaimo/data/wp /home/falhaimo/data/db
 run :
 	@cd srcs && \
 	if  [ -n "$$(docker image ls 2>/dev/null | sed -n '2 p')" ]; then \
