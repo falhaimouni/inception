@@ -57,23 +57,12 @@ services:
       wordpress:
         condition: service_healthy
     ports: 
-      - "80:80"
       - "443:443"
     networks:
       - network_1
 volumes:
   mariadb_vol:
-    driver: local
-    driver_opts:
-      type: none
-      device: /home/falhaimo/data/db
-      o: bind
   wordpress_vol:
-    driver: local
-    driver_opts:
-      type: none
-      device: /home/falhaimo/data/wp
-      o: bind 
 
 networks:
   network_1:

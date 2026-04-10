@@ -26,8 +26,8 @@ This project builds a small Docker-based infrastructure composed of NGINX (TLS),
 - Base images: Debian Bullseye
 - Services: NGINX (TLS), WordPress (php-fpm), MariaDB
 - Orchestration: docker-compose.yml + Makefile
-- Persistence: named volumes mapped to /home/falhaimo/data
-- Secrets: stored in srcs/secrets and mounted via Docker secrets
+- Persistence: Docker named volumes (`mariadb_vol`, `wordpress_vol`)
+- Secrets: stored in `secrets/` and mounted via Docker secrets
 
 ### Comparisons
 **Virtual Machines vs Docker**

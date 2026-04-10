@@ -18,7 +18,7 @@ This project sets up a complete Docker infrastructure with three interconnected 
 - **WordPress**: CMS with PHP 8.2-FPM backend, automated setup via WP-CLI
 - **MariaDB**: Database server with automated initialization
 
-All services communicate through a custom Docker bridge network (`network_1`) and use bind-mounted volumes for data persistence.
+All services communicate through a custom Docker bridge network (`network_1`) and use Docker named volumes for data persistence.
 
 ### Project Structure
 
@@ -48,9 +48,9 @@ inception/
 │   ├── db_root_password.txt
 │   ├── wp_admin_password.txt
 │   └── wp_user_password.txt
-└── /home/falhaimo/data/              # Host directories for persistent volumes
-    ├── db/                           # MariaDB data directory
-    └── wp/                           # WordPress files
+└── Docker named volumes              # Managed by Docker engine
+  ├── inception_mariadb_vol         # MariaDB data volume
+  └── inception_wordpress_vol       # WordPress files volume
 ```
 
 ---
@@ -59,7 +59,6 @@ inception/
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Linux system with `/home/falhaimo` directory accessible
 - Sufficient disk space (~1.5 GB for images + data)
 
 ### Step 1: Create Secrets (One-time Setup)
@@ -76,12 +75,11 @@ echo "your_wp_user_password" > secrets/wp_user_password.txt
 
 **Important**: The scripts strip trailing newlines automatically, but ensure clean content.
 
-### Step 2: Data Directories Created Automatically
+### Step 2: Named Volumes Created Automatically
 
-The Makefile automatically creates required directories:
-- `/home/falhaimo/data` (parent directory)
-- `/home/falhaimo/data/db` (MariaDB data)
-- `/home/falhaimo/data/wp` (WordPress files)
+Docker Compose creates required named volumes automatically:
+- `mariadb_vol` (mounted to `/var/lib/mysql`)
+- `wordpress_vol` (mounted to `/var/www/html`)
 
 ### Step 3: Start the Project
 
@@ -90,11 +88,10 @@ make
 ```
 
 This command executes:
-1. Creates `/home/falhaimo/data`, `/home/falhaimo/data/wp`, `/home/falhaimo/data/db` with sudo
-2. Checks if Docker images exist
-3. If images exist: runs `docker compose up -d`
-4. If no images: runs `docker compose up -d --build`
-5. Starts containers in dependency order (mariadb → wordpress → nginx)
+1. Checks if Docker images exist
+2. If images exist: runs `docker compose up -d`
+3. If no images: runs `docker compose up -d --build`
+4. Starts containers in dependency order (mariadb → wordpress → nginx)
 
 ### Step 4: Access the Website
 
@@ -128,11 +125,7 @@ q## Implementation Details
 ### Makefile Analysis
 
 ```makefile
-all : volumes run
-
-volumes:
-	@sudo mkdir -p /home/falhaimo/data
-	@sudo mkdir -p /home/falhaimo/data/wp /home/falhaimo/data/db
+all : run
 
 run :
 	@cd srcs && \
@@ -153,16 +146,15 @@ re: fclean all
 
 **Implementation Details:**
 
-1. **`all` target**: Calls `volumes` then `run`
-2. **`volumes` target**: Creates data directories with sudo (needed for bind mounts)
-3. **`run` target**: 
+1. **`all` target**: Calls `run`
+2. **`run` target**: 
    - Changes to `srcs/` directory
    - Checks if any Docker images exist using `docker image ls`
    - If images exist: runs `docker compose up -d` (faster, no rebuild)
    - If no images: runs `docker compose up -d --build` (builds first)
-4. **`clean` target**: Stops containers and removes volumes with `down -v`
-5. **`fclean` target**: Calls `clean` then removes all Docker images
-6. **`re` target**: Full rebuild (fclean + all)
+3. **`clean` target**: Stops containers and removes volumes with `down -v`
+4. **`fclean` target**: Calls `clean` then removes all Docker images
+5. **`re` target**: Full rebuild (fclean + all)
 
 ---
 
@@ -228,24 +220,13 @@ services:
       wordpress:
         condition: service_healthy
     ports: 
-      - "80:80"
       - "443:443"
     networks:
       - network_1
 
 volumes:
   mariadb_vol:
-    driver: local
-    driver_opts:
-      type: none
-      device: /home/falhaimo/data/db
-      o: bind
   wordpress_vol:
-    driver: local
-    driver_opts:
-      type: none
-      device: /home/falhaimo/data/wp
-      o: bind 
 
 networks:
   network_1:
@@ -275,9 +256,8 @@ secrets:
    - **NGINX**: No health check defined (optional)
 
 3. **Volume Configuration**:
-   - Uses bind mounts with `type: none` and `o: bind`
-   - MariaDB volume: `/home/falhaimo/data/db`
-   - WordPress volume: `/home/falhaimo/data/wp`
+  - Uses Docker named volumes (`mariadb_vol`, `wordpress_vol`)
+  - Docker manages storage under `/var/lib/docker/volumes/`
    - Both services mount `wordpress_vol` (NGINX needs to serve static files)
 
 4. **Secrets Management**:
@@ -290,8 +270,7 @@ secrets:
    - Enables DNS resolution (services reach each other by name)
 
 6. **Ports**:
-   - Both 80 and 443 exposed on NGINX
-   - Port 80 redirects to HTTPS (443)
+   - 443 exposed on NGINX
    - MariaDB (3306) and WordPress (9000) NOT exposed to host
 
 7. **Restart Policy**:
@@ -380,12 +359,6 @@ CMD ["nginx", "-g", "daemon off;"]
 #### NGINX Configuration (ACTUAL)
 
 ```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name _ falhaimo.42.fr www.falhaimo.42.fr;
-    return 301 https://$host$request_uri;
-}
 
 server {
     listen 443 ssl default_server;
@@ -783,7 +756,7 @@ exec php-fpm8.2 -F
    - WordPress waits for MariaDB to be healthy
    - NGINX waits for WordPress to be healthy
 4. **Network Creation**: Creates custom bridge network `network_1`
-5. **Volume Management**: Creates and mounts bind volumes
+5. **Volume Management**: Creates and mounts Docker named volumes
 6. **Secrets**: Mounts credential files securely
 7. **Health Checks**: Monitors service readiness
 8. **Restart Policy**: `restart: always` for all services
@@ -809,7 +782,7 @@ docker network create mynetwork
 # Start MariaDB
 docker run -d --name mariadb \
   --network mynetwork \
-  -v /home/falhaimo/data/db:/var/lib/mysql \
+  -v mariadb_vol:/var/lib/mysql \
   -e DB_NAME=wordpress_db \
   -e DB_USER=falhaimo \
   --secret db_password \
@@ -822,7 +795,7 @@ sleep 30
 # Start WordPress
 docker run -d --name wordpress \
   --network mynetwork \
-  -v /home/falhaimo/data/wp:/var/www/html \
+  -v wordpress_vol:/var/www/html \
   -e DB_HOST=mariadb \
   -e DB_NAME=wordpress_db \
   --secret db_password \
@@ -836,8 +809,7 @@ sleep 20
 # Start NGINX
 docker run -d --name nginx \
   --network mynetwork \
-  -v /home/falhaimo/data/wp:/var/www/html \
-  -p 80:80 \
+  -v wordpress_vol:/var/www/html \
   -p 443:443 \
   nginx
 ```
@@ -913,7 +885,7 @@ inception/
 │       ├── wordpress/
 │       └── mariadb/
 ├── secrets/              ← Separate from code (security)
-└── /home/falhaimo/data/  ← Persistent storage (outside project dir)
+└── Docker named volumes  ← Persistent storage managed by Docker
 ```
 
 **Rationale:**
@@ -939,8 +911,9 @@ inception/
    - Evaluator understands this must be created locally
    - Security best practice
 
-5. **`/home/<user>/data/` outside project**:
-   - Data persists even if project directory deleted
+5. **Docker named volumes**:
+  - Data persists independently from container lifecycle
+  - No hardcoded host paths required
    - Can be on different disk/partition
    - Follows Linux FHS (Filesystem Hierarchy Standard)
    - Required by project specifications
@@ -1096,34 +1069,28 @@ define('DB_HOST', '192.168.1.3');  // ❌ Hardcoded IP = FAIL
 
 **A:**
 
-**We use BIND MOUNTS** (with named volume syntax):
+**We use DOCKER NAMED VOLUMES**:
 
 ```yaml
 volumes:
   mariadb_vol:
-    driver: local
-    driver_opts:
-      type: none          # ← Key: "none" means bind mount
-      device: /home/falhaimo/data/db
-      o: bind
+  wordpress_vol:
 ```
 
 **Comparison:**
 
-| Aspect | Named Volume | Bind Mount (Our Implementation) |
-|--------|--------------|--------------------------------|
+| Aspect | Named Volume (Our Implementation) | Bind Mount |
+|--------|------------------------------------|------------|
 | **Location** | Docker-managed (`/var/lib/docker/volumes/`) | Host-specific path |
 | **Control** | Docker controls location | You specify exact path |
-| **Portability** | Works anywhere | Must ensure path exists |
-| **Performance** | Optimized by Docker | Direct host filesystem |
-| **Permissions** | Docker handles | Must match user/group |
-| **Project Requirement** | ❌ | ✅ Must use `/home/<user>/data/` |
+| **Portability** | Works across hosts | Depends on host path |
+| **Permissions** | Docker handles better by default | More host permission pitfalls |
+| **Project Requirement** | ✅ Required for persistent storages | ❌ Not allowed for required storages |
 
-**Why bind mounts for this project:**
-- Project requires specific path: `/home/falhaimo/data/`
-- Easy to inspect: `ls /home/falhaimo/data/db`
-- Easy to backup: Copy directory
-- Evaluator can verify data location
+**Why named volumes for this project:**
+- Subject-compliant for persistent storages
+- Cleaner and more portable configuration
+- Avoids host-path and ownership issues
 
 ---
 
@@ -1138,16 +1105,16 @@ docker compose down
 
 # Scenario 2: Remove containers AND volumes
 docker compose down -v
-# Volumes removed, BUT data still exists at /home/falhaimo/data/
+# Volumes removed, data is deleted with them
 
-# Scenario 3: Delete host directory
-sudo rm -rf /home/falhaimo/data/db
-# NOW data is actually lost
+# Scenario 3: Keep volumes, remove only containers
+docker compose down
+# Data is preserved in named volumes
 ```
 
 **Data persistence:**
-- **Survives**: Container removal, system reboot, `docker system prune`
-- **Lost only if**: Host directory manually deleted
+- **Survives**: Container removal, system reboot
+- **Lost if**: Volume is explicitly removed (`docker compose down -v`, `docker volume rm`, prune)
 
 **Verification:**
 ```bash
@@ -1434,7 +1401,7 @@ sed -i "s/127.0.0.1/0.0.0.0/" "/etc/mysql/mariadb.conf.d/50-server.cnf"
 
 **Our setup:**
 - MariaDB: `0.0.0.0` + NO port publishing = Secure ✅
-- NGINX: Ports 80/443 published = Expected (it's the entry point) ✅
+- NGINX: Port 443 published = Expected (it's the entry point) ✅
 
 ---
 
@@ -1787,11 +1754,7 @@ NO → 404 Not Found  ❌
 
 **Makefile:**
 ```makefile
-all : volumes run
-
-volumes:
-	@sudo mkdir -p /home/falhaimo/data
-	@sudo mkdir -p /home/falhaimo/data/wp /home/falhaimo/data/db
+all : run
 
 run :
 	@cd srcs && \
@@ -1813,20 +1776,10 @@ re: fclean all
 **Execution: `make` (or `make all`)**
 
 **Step 1: Target `all`**
-- Depends on: `volumes` and `run`
-- Executes `volumes` first, then `run`
+- Depends on: `run`
+- Executes `run`
 
-**Step 2: Target `volumes`**
-```bash
-sudo mkdir -p /home/falhaimo/data
-sudo mkdir -p /home/falhaimo/data/wp /home/falhaimo/data/db
-```
-- Creates parent directory `/home/falhaimo/data`
-- Creates subdirectories `wp` and `db`
-- Uses `sudo` (needed for directory creation in /home)
-- `-p`: Creates parent directories, doesn't error if exists
-
-**Step 3: Target `run`**
+**Step 2: Target `run`**
 ```bash
 cd srcs  # Change to srcs directory (where docker-compose.yml is)
 
@@ -1847,7 +1800,7 @@ fi
 - **If images exist**: `docker compose up -d` (faster)
 - **If no images**: `docker compose up -d --build` (builds images first)
 
-**Step 4: Docker Compose Up**
+**Step 3: Docker Compose Up**
 
 **If building (--build):**
 1. **Build mariadb image**:
@@ -1874,8 +1827,7 @@ fi
    - Creates bridge network `network_1`
 
 5. **Create volumes**:
-   - Binds `mariadb_vol` to `/home/falhaimo/data/db`
-   - Binds `wordpress_vol` to `/home/falhaimo/data/wp`
+  - Creates `mariadb_vol` and `wordpress_vol` as Docker named volumes
 
 6. **Start MariaDB**:
    - Creates container `mariadb`
@@ -1904,7 +1856,7 @@ fi
 8. **Start NGINX** (waits for WordPress healthy):
    - Creates container `nginx`
    - Starts NGINX with daemon off
-   - Binds ports 80, 443 to host
+   - Binds port 443 to host
    - Ready to accept connections
 
 **Total time:**
@@ -1919,7 +1871,7 @@ cd srcs && docker compose down -v
 ```
 - Stops all containers
 - Removes containers
-- Removes volumes (but data in /home/falhaimo/data remains!)
+- Removes named volumes (their data is deleted)
 
 **`make fclean`:**
 ```bash
@@ -1959,9 +1911,6 @@ docker volume rm $(docker volume ls -q) 2>/dev/null || true
 
 # Remove all networks
 docker network prune -f
-
-# Remove data directories (optional, for completely fresh start)
-sudo rm -rf /home/falhaimo/data
 ```
 
 ### Step-by-Step Verification
@@ -2019,16 +1968,15 @@ local     inception_mariadb_vol
 local     inception_wordpress_vol
 ```
 
-**5. Check data directories:**
+**5. Inspect volumes:**
 ```bash
-ls -la /home/falhaimo/data/
-ls -la /home/falhaimo/data/db/
-ls -la /home/falhaimo/data/wp/
+docker volume inspect inception_mariadb_vol
+docker volume inspect inception_wordpress_vol
 ```
 
 **Expected:**
-- `db/` contains MariaDB files (mysql/, wordpress_db/, etc.)
-- `wp/` contains WordPress files (index.php, wp-config.php, etc.)
+- Volumes exist and are attached to the compose stack
+- `Mountpoint` is under Docker-managed storage
 
 **6. Test HTTP→HTTPS redirect:**
 ```bash
@@ -2185,16 +2133,16 @@ sudo apt-get install docker-compose-plugin
 
 ---
 
-### Issue: "Cannot create directory /home/falhaimo/data: Permission denied"
+### Issue: "Persistent data not preserved"
 
 **Solution:**
 ```bash
-# Create directory with proper permissions
-sudo mkdir -p /home/falhaimo/data
-sudo chown -R $USER:$USER /home/falhaimo/data
+# Check volumes exist
+docker volume ls | grep inception
 
-# Or run make with sudo (Makefile already uses sudo)
-make
+# Recreate stack with fresh volumes if needed
+docker compose down -v
+docker compose up -d --build
 ```
 
 ---
@@ -2235,11 +2183,7 @@ cat secrets/db_password.txt | od -c  # Check for \n at end
 tr -d '\n' < secrets/db_password.txt > secrets/db_password.tmp
 mv secrets/db_password.tmp secrets/db_password.txt
 
-# 2. Insufficient permissions on data directory
-sudo chown -R 999:999 /home/falhaimo/data/db  # 999 = mysql user in container
-
-# 3. Corrupted database (if it was partially initialized)
-sudo rm -rf /home/falhaimo/data/db/*
+# 2. Corrupted database volume (if it was partially initialized)
 docker compose down -v
 docker compose up -d --build
 ```
@@ -2295,7 +2239,6 @@ docker logs wordpress
 
 # Force reinstall (if needed)
 docker compose down -v
-sudo rm -rf /home/falhaimo/data/wp/*
 docker compose up -d
 ```
 
@@ -2357,22 +2300,14 @@ cat /etc/hosts | grep falhaimo
 # Should show: 127.0.0.1 falhaimo.42.fr
 ```
 
----
-
 ### Issue: "Volume mount fails: device not found"
 
 **Solution:**
 ```bash
-# Ensure directories exist
-sudo mkdir -p /home/falhaimo/data/db
-sudo mkdir -p /home/falhaimo/data/wp
-
-# Check ownership
-ls -la /home/falhaimo/data/
-# Should be owned by your user
-
-# If wrong owner
-sudo chown -R $USER:$USER /home/falhaimo/data/
+# Named volumes are auto-created by Docker Compose.
+# If a volume is missing or corrupted, recreate cleanly:
+docker compose down -v
+docker compose up -d --build
 ```
 
 ---
@@ -2438,15 +2373,15 @@ docker run --rm -it --entrypoint /bin/bash wordpress
 
 > "The containers communicate through a custom bridge network called `network_1`. Docker provides built-in DNS resolution, so services can reach each other by name rather than IP address. For example, WordPress connects to `mariadb:3306` and NGINX forwards PHP requests to `wordpress:9000`.
 >
-> This is critical - using service names instead of IPs is a Docker best practice because container IPs can change on restart. The configuration shows this: in `wp-config.php`, we have `DB_HOST='mariadb'`, and in NGINX config, `fastcgi_pass wordpress:9000`. All communication is internal to the Docker network - only NGINX's ports 80 and 443 are exposed to the host."
+> This is critical - using service names instead of IPs is a Docker best practice because container IPs can change on restart. The configuration shows this: in `wp-config.php`, we have `DB_HOST='mariadb'`, and in NGINX config, `fastcgi_pass wordpress:9000`. All communication is internal to the Docker network - only NGINX's port 443 are exposed to the host."
 
 ---
 
 ### Volumes & Data Persistence (1 min)
 
-> "We use bind mounts to store persistent data at specific host locations: `/home/falhaimo/data/db` for MariaDB and `/home/falhaimo/data/wp` for WordPress files. Both services mount the WordPress volume because NGINX needs to serve static files directly while forwarding PHP processing to WordPress.
+> "We use Docker named volumes for persistent data: `mariadb_vol` for MariaDB and `wordpress_vol` for WordPress files. Both WordPress and NGINX mount `wordpress_vol` because NGINX needs to serve static files directly while forwarding PHP processing to WordPress.
 >
-> The volumes are configured as bind mounts in docker-compose.yml using `type: none` and `o: bind`. This ensures data persists even if containers are removed, meeting the project requirement for specific data directory locations."
+> The volumes are configured as named volumes in docker-compose.yml, which is the correct requirement for this project. Data persists across container restarts/removal unless volumes are explicitly removed."
 
 ---
 
@@ -2492,7 +2427,7 @@ docker run --rm -it --entrypoint /bin/bash wordpress
 
 **Q: What happens if I delete a container?**
 
-**A:** "The container is removed, but data persists in the host directories at `/home/falhaimo/data/`. When you run `docker compose up` again, new containers are created and mount the same volumes, so all data (database contents, WordPress files, posts, users) is preserved. Data is only lost if you manually delete the host directories."
+**A:** "The container is removed, but data persists in Docker named volumes. When you run `docker compose up` again, new containers mount the same volumes, so database contents, WordPress files, posts, and users are preserved. Data is lost only if volumes are explicitly removed (for example with `docker compose down -v`)."
 
 ---
 
@@ -2530,7 +2465,7 @@ cat srcs/.env | grep DB_HOST
 
 **Q: What if the evaluator's machine uses a different username?**
 
-**A:** "The volume paths in docker-compose.yml currently use `/home/falhaimo/`. For a different user, you'd need to update these paths in the `volumes:` section to match their home directory (e.g., `/home/evaluator/data/db`). The Makefile would also need the paths updated in the `volumes:` target. Everything else works the same - Docker's service discovery doesn't depend on usernames."
+**A:** "No username-specific path change is required for persistent storage, because we use Docker named volumes instead of host bind mounts. The stack works the same across users, and Docker service discovery remains unchanged."
 
 ---
 
@@ -2599,7 +2534,7 @@ docker stats
 - [x] MariaDB working and accessible
 - [x] No pre-made images from Docker Hub
 - [x] Custom bridge network with DNS resolution
-- [x] All volumes mounted to `/home/falhaimo/data/`
+- [x] Persistent storage uses Docker named volumes (`mariadb_vol`, `wordpress_vol`)
 - [x] No background processes in entrypoints (using exec)
 - [x] Admin user without "admin" keyword
 - [x] Data persists after restart/reboot
